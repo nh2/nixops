@@ -935,6 +935,10 @@ class Deployment(object):
                         r.wait_for_ssh(check=check)
                         r.generate_vpn_key()
 
+                        # Change binary-caches to the ones the user wants
+                        r.log("setting custom nix.conf options")
+                        r.run_command("cp /etc/nix/nix.conf /tmp/nix.conf && perl -p -i -e 's@^binary-caches.*$@binary-caches = http://nixos-cache.benaco.com/ http://cache.nixos.org/@g' /tmp/nix.conf && perl -p -i -e 's@^build-max-jobs.*$@build-max-jobs = 20@g' /tmp/nix.conf && mv /tmp/nix.conf /etc/nix/nix.conf")
+
                 except:
                     r._errored = True
                     raise
