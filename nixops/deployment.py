@@ -937,7 +937,7 @@ class Deployment(object):
 
                         # Change binary-caches to the ones the user wants
                         r.log("setting custom nix.conf options")
-                        r.run_command("cp /etc/nix/nix.conf /tmp/nix.conf && perl -p -i -e 's@^binary-caches.*$@binary-caches = http://nixos-cache.benaco.com/ http://cache.nixos.org/@g' /tmp/nix.conf && perl -p -i -e 's@^build-max-jobs.*$@build-max-jobs = 20@g' /tmp/nix.conf && mv /tmp/nix.conf /etc/nix/nix.conf")
+                        r.run_command("cp /etc/nix/nix.conf /tmp/nix.conf && perl -p -i -e 's@^binary-caches.*$@binary-caches = http://nixos-cache.benaco.com/ http://cache.nixos.org/@g' /tmp/nix.conf && perl -p -i -e 's@^build-max-jobs.*$@build-max-jobs = 1@g' /tmp/nix.conf && perl -p -i -e 's@^binary-cache-public-keys.*$@binary-cache-public-keys = benaco-nix-binary-cache-signing-key:TiYm+ouXxHq1yu3YyjVBseCwjj8uOE8AWPF1wDo5JbI= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=@g' /tmp/nix.conf && mv /tmp/nix.conf /etc/nix/nix.conf")
 
                 except:
                     r._errored = True
