@@ -386,6 +386,9 @@ class HetznerState(MachineState):
             self.run_command(cmd)
         self.log_end("done.")
 
+        self.log("setting custom nix.conf options in chroot")
+        self.run_command("mkdir -p /mnt/etc/nix && echo 'binary-caches = http://nixos-cache.benaco.com/ http://cache.nixos.org\nbuild-max-jobs = 5' > /mnt/etc/nix/nix.conf")
+
         self.run_command("touch /mnt/etc/NIXOS")
         self.run_command("activate-remote")
 
