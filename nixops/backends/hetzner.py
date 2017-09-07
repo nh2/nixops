@@ -281,6 +281,10 @@ class HetznerState(MachineState):
         self.log_end("done.")
 
         if install:
+            # Workaround for https://github.com/NixOS/nixpart/issues/10
+            self.log_start("disabling potentially active LVM arrays... ")
+            self.run_command("vgchange -a n")
+
             self.log_start("partitioning disks... ")
             try:
                 out = self.run_command("nixpart -p -", capture_stdout=True,

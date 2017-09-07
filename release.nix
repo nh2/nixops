@@ -8,6 +8,27 @@ let
 
   version = "1.5.2" + (if officialRelease then "" else "pre${toString nixopsSrc.revCount}_${nixopsSrc.shortRev}");
 
+  customHetzner = pkgs.pythonPackages.buildPythonPackage rec {
+    name = "hetzner-${version}";
+    version = "0.7.5-custom";
+
+    src = pkgs.fetchFromGitHub {
+      repo = "hetzner";
+      owner = "RedMoonStudios";
+      rev = "c7181fd0763a08754a3305da82e1bb649827f4a1";
+      sha256 = "0dc5n2xxf6136aaldw8pqp6mvs9ydj2fxavzrdjgdx2a8ir847q2";
+    };
+
+    # not there yet, but coming soon.
+    doCheck = false;
+
+    meta = {
+      homepage = "https://github.com/RedMoonStudios/hetzner";
+      description = "High-level Python API for accessing the Hetzner robot";
+      license = pkgs.lib.licenses.bsd3;
+      maintainers = with pkgs.maintainers; [ aszlig ];
+    };
+  };
 in
 
 rec {
@@ -83,7 +104,8 @@ rec {
         [ prettytable
           boto
           boto3
-          hetzner
+          # hetzner
+          customHetzner
           libcloud
           azure-storage
           azure-mgmt-compute
