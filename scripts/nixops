@@ -12,7 +12,7 @@ import os
 import pwd
 import re
 import sys
-import subprocess
+import subprocess32 as subprocess
 import nixops.parallel
 import nixops.util
 import nixops.known_hosts

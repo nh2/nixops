@@ -6,7 +6,7 @@ from nixops.util import devnull
 import sys
 import time
 import signal
-import subprocess
+import subprocess32 as subprocess
 
 parent_dir = path.dirname(__file__)
 

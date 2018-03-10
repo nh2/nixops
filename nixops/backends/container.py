@@ -3,7 +3,7 @@
 from nixops.backends import MachineDefinition, MachineState
 import nixops.util
 import nixops.ssh_util
-import subprocess
+import subprocess32 as subprocess
 import time
 
 class ContainerDefinition(MachineDefinition):

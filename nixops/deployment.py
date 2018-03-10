@@ -2,7 +2,7 @@
 
 import sys
 import os.path
-import subprocess
+import subprocess32 as subprocess
 import json
 import string
 import tempfile

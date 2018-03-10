@@ -2,7 +2,7 @@
 
 import os
 import re
-import subprocess
+import subprocess32 as subprocess
 import time
 
 import nixops.util

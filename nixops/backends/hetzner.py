@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import os
 import socket
 import struct
-import subprocess
+import subprocess32 as subprocess
 
 from hetzner.robot import Robot
 

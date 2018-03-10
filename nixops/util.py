@@ -12,7 +12,7 @@ import socket
 import struct
 import shutil
 import tempfile
-import subprocess
+import subprocess32 as subprocess
 import logging
 import atexit
 from StringIO import StringIO

@@ -6,7 +6,7 @@ import copy
 import random
 import shutil
 import string
-import subprocess
+import subprocess32 as subprocess
 import time
 
 from nixops.backends import MachineDefinition, MachineState

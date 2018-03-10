@@ -117,6 +117,8 @@ rec {
           pysqlite
           datadog
           digital-ocean
+          # Remove once nixops has upgraded to Python 3
+          subprocess32
         ];
 
       # For "nix-build --run-env".
