@@ -5,6 +5,18 @@ import nixops.util
 import nixops.ssh_util
 import subprocess32 as subprocess
 import time
+import threading
+
+# Mitigation for nixops issue #889:
+# When two `nix-build`s to create `*-initial.nix` outputs run at the
+# same time, the outputs can be nondeterministically incorrect,
+# duplicating one machine config into the other.
+# Until we have found and fixed the reason, we ensure that only
+# one such `nix-build` process can run at any given time.
+# Unfortunately we can only easily guarantee this within a single
+# nixops invocation; if you run multiple in parallel, the problem
+# may still occur.
+contianers_process_global_nix_build_lock = threading.Lock()
 
 class ContainerDefinition(MachineDefinition):
     """Definition of a NixOS container."""
@@ -137,14 +149,20 @@ class ContainerState(MachineState):
             expr_file = self.depl.tempdir + "/{0}-initial.nix".format(self.name)
             nixops.util.write_file(expr_file, expr)
 
+            self.log("Waiting to lock contianers_process_global_nix_build_lock to work around nixops bug #889")
+            contianers_process_global_nix_build_lock.acquire()
+            self.log("Locked contianers_process_global_nix_build_lock to work around nixops bug #889")
             path = subprocess.check_output(
                 ["nix-build", "<nixpkgs/nixos>", "-A", "system",
                  "-I", "nixos-config={0}".format(expr_file)]
                 + self.depl._nix_path_flags()).rstrip()
+            contianers_process_global_nix_build_lock.release()
+            self.log("Unlocked contianers_process_global_nix_build_lock to work around nixops bug #889")
 
             self.log("creating container...")
             self.host = defn.host
             self.copy_closure_to(path)
+            # self.log("creating container {0} with system path {1}".format(self.name[:7], path))
             self.vm_id = self.host_ssh.run_command(
                 "nixos-container create {0} --ensure-unique-name --system-path '{1}'"
                 .format(self.name[:7], path), capture_stdout=True).rstrip()
