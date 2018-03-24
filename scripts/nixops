@@ -16,6 +16,7 @@ import subprocess32 as subprocess
 import nixops.parallel
 import nixops.util
 import nixops.known_hosts
+import tempfile
 import time
 import logging
 import logging.handlers
@@ -534,12 +535,16 @@ def op_ssh():
 def op_ssh_for_each():
     results = []
     for depl in one_or_all():
-      def worker(m):
-          if not nixops.deployment.should_do(m, args.include or [], args.exclude or []): return
-          return m.ssh.run_command(args.args, allow_ssh_args=True, check=False)
-      results = results + nixops.parallel.run_tasks(
-          nr_workers=len(depl.machines) if args.parallel else 1,
-          tasks=depl.active.itervalues(), worker_fun=worker)
+        def worker(m):
+            if not nixops.deployment.should_do(m, args.include or [], args.exclude or []): return
+            if args.stdin_file is None:
+                return m.ssh.run_command(args.args, allow_ssh_args=True, check=False)
+            else:
+                with open(args.stdin_file, 'r') as f:
+                    return m.ssh.run_command(args.args, allow_ssh_args=True, check=False, logged=False, stdin=f)
+        results = results + nixops.parallel.run_tasks(
+            nr_workers=len(depl.machines) if args.parallel else 1,
+            tasks=depl.active.itervalues(), worker_fun=worker)
 
     sys.exit(max(results) if results != [] else 0)
 
@@ -843,6 +848,7 @@ subparser.add_argument('--parallel', '-p', action='store_true', help='run in par
 subparser.add_argument('--include', nargs='+', metavar='MACHINE-NAME', help='run command only on the specified machines')
 subparser.add_argument('--exclude', nargs='+', metavar='MACHINE-NAME', help='run command on all except the specified machines')
 subparser.add_argument('--all',  action='store_true', help='run ssh-for-each for all deployments')
+subparser.add_argument('--stdin-file', metavar='PATH', default=None, help='send the given file as stdin to each machine')
 
 subparser = add_subparser('scp', help='copy files to or from the specified machine via scp')
 subparser.set_defaults(op=op_scp)
