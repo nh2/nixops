@@ -368,7 +368,7 @@ def op_deploy():
         depl.logger.set_autoresponse("y")
     if args.evaluate_only:
         raise Exception("--evaluate-only was removed as it's the same as --dry-run")
-    depl.deploy(dry_run=args.dry_run, 
+    depl.deploy(dry_run=args.dry_run,
                 build_only=args.build_only,
                 create_only=args.create_only, copy_only=args.copy_only,
                 include=args.include or [], exclude=args.exclude or [],
@@ -968,8 +968,4 @@ except MultipleExceptions as e:
     error(str(e))
     if args.debug or str(e) == "":
         e.print_all_backtraces()
-    sys.exit(1)
-except Exception as e:
-    if args.debug or str(e) == "": raise
-    error(str(e))
     sys.exit(1)
