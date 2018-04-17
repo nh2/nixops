@@ -1183,7 +1183,7 @@ def _create_definition(xml, config, type_name):
             else:
                 return cls(xml, config)
 
-    raise nixops.deployment.UnknownBackend("unknown resource type ‘{0}’".format(type_name))
+    raise nixops.deployment.UnknownBackend("unknown resource definition type ‘{0}’".format(type_name))
 
 def _create_state(depl, type, name, id):
     """Create a resource state object of the desired type."""
@@ -1192,7 +1192,7 @@ def _create_state(depl, type, name, id):
         if type == cls.get_type():
             return cls(depl, name, id)
 
-    raise nixops.deployment.UnknownBackend("unknown resource type ‘{0}’".format(type))
+    raise nixops.deployment.UnknownBackend("unknown resource state type ‘{0}’".format(type))
 
 
 # Automatically load all resource types.
