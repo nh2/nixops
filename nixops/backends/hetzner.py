@@ -665,7 +665,9 @@ class HetznerState(MachineState):
 
     def stop(self):
         """
-        Stops the server by shutting it down without powering it off.
+        We don't shut down the servers with poweroff here (just halt), so the
+        servers are still running. This is because not all servers at Hetzner
+        support Wake on LAN.
         """
         if self.state not in (self.RESCUE, self.UP):
             return
