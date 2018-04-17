@@ -287,6 +287,7 @@ rec {
           digitalOcean = optionalAttrs (v.config.deployment.targetEnv == "digitalOcean") v.config.deployment.digitalOcean;
           gce = optionalAttrs (v.config.deployment.targetEnv == "gce") v.config.deployment.gce;
           hetzner = optionalAttrs (v.config.deployment.targetEnv == "hetzner") v.config.deployment.hetzner;
+          hetznercloud = optionalAttrs (v.config.deployment.targetEnv == "hetznercloud") v.config.deployment.hetznercloud;
           container = optionalAttrs (v.config.deployment.targetEnv == "container") v.config.deployment.container;
           route53 = v.config.deployment.route53;
           virtualbox =

@@ -29,6 +29,41 @@ let
       maintainers = with pkgs.maintainers; [ aszlig ];
     };
   };
+
+  hetznercloud-py = pkgs.pythonPackages.buildPythonPackage rec {
+    name = "hetznercloud-py-${version}";
+    version = "1.0.1";
+
+    src = pkgs.fetchFromGitHub {
+      repo = "hetznercloud-py";
+      # TODO replace by "elsyms" and appropirate release once
+      #   https://github.com/elsyms/hetznercloud-py/pull/7
+      #   https://github.com/elsyms/hetznercloud-py/pull/10
+      #   https://github.com/elsyms/hetznercloud-py/pull/11
+      #   https://github.com/elsyms/hetznercloud-py/pull/12
+      # are merged
+      owner = "nh2";
+      rev = "e4a496eacb09cc5a7f7c3d00c1954c425df6ea03";
+      sha256 = "1bbfihm2wgm4wz83qhvsckpb4h3d811g1lh9nrclnjflpb441gkw";
+    };
+
+    buildInputs = with pkgs.python2Packages;
+      [ requests
+        certifi
+        chardet
+        idna
+        nose
+        requests
+        urllib3
+      ];
+
+    meta = {
+      homepage = "https://github.com/elsyms/hetznercloud-py";
+      description = "Python SDK for the new Hetzner cloud";
+      license = pkgs.lib.licenses.mit;
+      maintainers = with pkgs.maintainers; [ nh2 ];
+    };
+  };
 in
 
 rec {
@@ -106,6 +141,7 @@ rec {
           boto3
           # hetzner
           customHetzner
+          hetznercloud-py
           libcloud
           azure-storage
           azure-mgmt-compute
