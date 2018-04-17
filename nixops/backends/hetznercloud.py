@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import os
+import re
 import socket
 import struct
 import subprocess32 as subprocess
@@ -17,6 +18,11 @@ from nixops.util import attr_property, create_key_pair
 from nixops.ssh_util import SSHCommandFailed
 from nixops.backends import MachineDefinition, MachineState
 from nixops.nix_expr import nix2py
+
+def network_interface_name_for_nixos_version(nixos_version_string):
+    # See https://github.com/NixOS/nixpkgs/commit/49d34a49650182129ce1c5d0a453ae9823c4ff06
+    assert len(nixos_version_string) > 0
+    return "ens3" if nixops.util.parse_nixos_version(nixos_version_string) >= ["17", "09"] else "enp0s3"
 
 class HetznerCloudDefinition(MachineDefinition):
     """
@@ -39,6 +45,9 @@ class HetznerCloudDefinition(MachineDefinition):
 
     def host_key_type(self):
         return "ed25519" if nixops.util.parse_nixos_version(self.config["nixosRelease"]) >= ["15", "09"] else "dsa"
+
+    def network_interface_name(self):
+        return network_interface_name_for_nixos_version(self.config["nixosRelease"])
 
 class HetznerCloudState(MachineState):
     """
@@ -351,7 +360,7 @@ class HetznerCloudState(MachineState):
         cmd = "nixos-generate-config --no-filesystems --show-hardware-config"
         hardware = self.run_command(cmd, capture_stdout=True)
         self.hw_info = '\n'.join([line for line in hardware.splitlines()
-                                  if not line.rstrip().startswith('#')])
+                                  if not line.lstrip().startswith('#')])
         self.log_end("done.")
 
     def switch_to_configuration(self, method, sync, command=None):
@@ -382,6 +391,13 @@ class HetznerCloudState(MachineState):
         # We don't use \(\) here to ensure this works even without GNU sed.
         cmd = "ip addr show | sed -n -e 's/^[0-9]*: *//p' | cut -d: -f1"
         return self.run_command(cmd, capture_stdout=True).splitlines()
+
+    def _get_mac_address_for_interface(self, interface):
+        cmd = "cat /sys/class/net/" + interface + "/address"
+        mac_addr = self.run_command(cmd, capture_stdout=True).strip()
+        # Regex from https://stackoverflow.com/a/4260512/263061
+        assert re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', mac_addr), "unexpected MAC address"
+        return mac_addr
 
     def _get_udev_rule_for(self, interface):
         """
@@ -502,20 +518,6 @@ class HetznerCloudState(MachineState):
         local_commands = '\n'.join(ipv6_commands + route_commands) + '\n'
 
         self.net_info = {
-            'services': {
-                'udev': {'extraRules': '\n'.join(udev_rules) + '\n'},
-            },
-            'networking': {
-                'interfaces': iface_attrs,
-                # 'defaultGateway': defgw,
-
-                # Hetzner cloud needs these static routes, see
-                # https://wiki.hetzner.de/index.php/VServer/en#Which_network_configuration_must_be_done.3F
-                ('dhcpcd', 'enable'): False,
-                'localCommands': '\n'.join(["ip route add 172.31.1.1 dev enp0s3", "ip route add default via 172.31.1.1"]),
-
-                'nameservers': self._get_nameservers(),
-            }
         }
 
     def get_physical_spec(self):
@@ -536,16 +538,52 @@ class HetznerCloudState(MachineState):
         # if all([self.net_info,                 self.hw_info,
         #         self.main_ssh_public_key]):
         return {
-            'config': dict(self.net_info.items() + {
+            'config': {
+                'services': {
+                    # 'udev': {'extraRules': '\n'.join(udev_rules) + '\n'},
+                    # See note [Network interface renaming]
+                    'udev': {'extraRules': 'ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="' + self.mac_address + '", NAME="' + self.interface_name + '"\n'},
+                },
+                'networking': {
+                    # For the interface naming, see
+                    #   https://github.com/NixOS/nixpkgs/commit/49d34a49650182129ce1c5d0a453ae9823c4ff06
+                    ('interfaces', self.interface_name): {
+                      'ipAddress': self.public_ipv4,
+                      'prefixLength': 32,
+                    },
+
+                    # Hetzner cloud needs these static routes, see
+                    # https://wiki.hetzner.de/index.php/VServer/en#Which_network_configuration_must_be_done.3F
+                    ('dhcpcd', 'enable'): False,
+                    'localCommands': '\n'.join([
+                        "ip route add 172.31.1.1 dev " + self.interface_name,
+                        "ip route add default via 172.31.1.1",
+                    ]),
+
+                    # See https://wiki.hetzner.de/index.php/Hetzner_Standard_Name_Server/en
+                    'nameservers': [
+                        "213.133.98.98",
+                        "213.133.99.99",
+                        "213.133.100.100",
+                    ],
+                },
                 ('users', 'extraUsers', 'root', 'openssh', 'authorizedKeys', 'keys'): [self.main_ssh_public_key],
                 ('boot', 'loader', 'grub', 'device'): '/dev/sda',
                 ('fileSystems', '/'): { 'device': '/dev/sda1', 'fsType': 'ext4' },
-            }.items()),
-            # 'imports': [nix2py(self.fs_info), nix2py(self.hw_info)],
-            'imports': [                        nix2py(self.hw_info)],
+            },
+            # Without the modules below, the VM cannot see the disk (/dev/sda).
+            'imports': [nix2py('''
+                {
+                  imports =
+                    [ <nixpkgs/nixos/modules/profiles/qemu-guest.nix>
+                    ];
+
+                  boot.initrd.availableKernelModules = [ "ata_piix" "uhci_hcd" "virtio_pci" "sd_mod" "sr_mod" ];
+                  boot.kernelModules = [ ];
+                  boot.extraModulePackages = [ ];
+                }
+            ''')],
         }
-        # else:
-        #     return {}
 
     def create(self, defn, check, allow_reboot, allow_recreate):
         assert isinstance(defn, HetznerCloudDefinition)
@@ -635,7 +673,54 @@ class HetznerCloudState(MachineState):
             self.main_ssh_private_key, self.main_ssh_public_key = create_key_pair(
                 key_name="NixOps client key of {0}".format(self.name)
             )
-            self._gen_network_spec(server)
+            # self._gen_network_spec(server)
+
+            # Note [Network interface renaming]
+            #
+            # The funny Linux/systemd network interface renaming as described in
+            #   https://github.com/NixOS/nixpkgs/commit/49d34a49650182129ce1c5d0a453ae9823c4ff06
+            # poses a risk for servers: When upgrading from e.g. NixOS 17.03 to 17.09,
+            # after the reboot the default network interface comes back as 'ens3' when
+            # before it was `enp0s3`.
+            # Obviously that's bad for NixOps:
+            # The default image at the cloud provider with which a newly created server
+            # boots before NixOps starts modifying it might be e.g. 17.03, and the version
+            # the user wants to deploy might be 17.09.
+            # When nixops wants to initially deploy the booted machine, it has to mention
+            # the interface name in the config. The dilemma:
+            # * If it uses 'enp0s3', then after a reboot that interface will not exist.
+            # * If it uses 'ens3', then the `nixos-rebuild switch` part of the
+            #   deploy will fail because that interface doesn't exist on the running system.
+            # The release notes in
+            #   https://github.com/NixOS/nixpkgs/commit/49d34a49650182129ce1c5d0a453ae9823c4ff06#diff-ca92d8c04b70cab44f3b2d91f0dbd9c1R220
+            # mention:
+            #   After changing the interface names, rebuild your system with
+            #   `nixos-rebuild boot` [instead of `switch`] to activate the new
+            #   configuration after a reboot. If you switch to the new
+            #   configuration right away you might lose network connectivity!
+            # However, nixops can't do that, it always uses `switch`.
+            #
+            # As a workaround, we add a udev rule to the physical spec that fixes
+            # the interface name for that MAC address to whatever it was in the
+            # NixOS image booted from the cloud provider.
+            # We cannot fix it to the interface name that would be chosen by
+            # the NixOS configuration deployed by the user through NixOps,
+            # because that would require an interface name change while it
+            # is in use, which Linux bails on with "Device or resource busy".
+            # As a result, the `hetznercloud.image` setting will determine the
+            # interface name, from the creation of the VM forever into the future,
+            # independent of NixOS/systemd udpates.
+
+            # Determine pre-deploy NixOS version
+            image_os_release = self.run_command("cat /etc/os-release", capture_stdout=True)
+            match = re.search('VERSION_ID="([0-9]+\.[0-9]+).*"', image_os_release)
+            assert match, "Cannot determine version from the booted NixOS image"
+            image_nixos_version = match.group(1)
+
+            # Determine mac address and set target interface name
+            initial_interface_name = network_interface_name_for_nixos_version(image_nixos_version)
+            self.mac_address = self._get_mac_address_for_interface(initial_interface_name)
+            self.interface_name = initial_interface_name
 
         # if not self.vm_id:
         #     self.log("installing machine...")
