@@ -193,6 +193,10 @@ class MachineState(nixops.resources.ResourceState):
         # manner, we compare the output of `last reboot` before and after
         # the reboot. Once the output has changed, the reboot is done.
         def get_last_reboot_output():
+            # Note `last reboot` does not exist on older OSs like
+            # the Hetzner rescue system, but that doesn't matter much
+            # because all we care about is when the output of the
+            # command invocation changes.
             return self.run_command('last reboot --time-format iso | head -n1', capture_stdout=True).rstrip()
 
         pre_reboot_last_reboot_output = get_last_reboot_output()
