@@ -464,9 +464,12 @@ class HetznerState(MachineState):
         """
         Return the default gateway of the currently running machine.
         """
-        cmd = "ip route list | sed -n -e 's/^default  *via  *//p'"
-        cmd += " | cut -d' ' -f1"
-        return self.run_command(cmd, capture_stdout=True).strip()
+        default_gw_cmd = "ip route list | sed -n -e 's/^default  *via  *//p'"
+        gw_ip_cmd = default_gw_cmd + " | cut -d' ' -f1"
+        gw_dev_cmd = default_gw_cmd + " | cut -d' ' -f3"
+        gw_ip = self.run_command(gw_ip_cmd, capture_stdout=True).strip()
+        gw_dev = self.run_command(gw_dev_cmd, capture_stdout=True).strip()
+        return (gw_ip, gw_dev)
 
     def _get_nameservers(self):
         """
@@ -505,8 +508,8 @@ class HetznerState(MachineState):
         server = self._get_server_by_ip(self.main_ipv4)
 
         # Global networking options
-        defgw = self._get_default_gw()
-        v6defgw = None
+        defgw_ip, defgw_dev = self._get_default_gw()
+        v6defgw_ip = None
 
         # Interface-specific networking options
         for iface in self._get_ethernet_interfaces():
@@ -531,7 +534,7 @@ class HetznerState(MachineState):
 
             # Extra route for accessing own subnet
             net = self._calculate_ipv4_subnet(ipv4, int(prefix))
-            extra_routes.append(("{0}/{1}".format(net, prefix), defgw, iface))
+            extra_routes.append(("{0}/{1}".format(net, prefix), defgw_ip, iface))
 
             # IPv6 subnets only for eth0 (XXX: more flexibility here?)
             v6addr_command = "ip -6 addr add '{0}' dev '{1}' || true"
@@ -541,8 +544,8 @@ class HetznerState(MachineState):
                     continue
                 v6addr = "{0}/{1}".format(subnet.net_ip, subnet.mask)
                 ipv6_commands.append(v6addr_command.format(v6addr, iface))
-                assert v6defgw is None or v6defgw == subnet.gateway
-                v6defgw = subnet.gateway
+                assert v6defgw_ip is None or v6defgw_ip == subnet.gateway
+                v6defgw_ip = subnet.gateway
 
         # Extra routes
         route4_cmd = "ip -4 route change '{0}' via '{1}' dev '{2}' || true"
@@ -551,7 +554,7 @@ class HetznerState(MachineState):
 
         # IPv6 configuration
         route6_cmd = "ip -6 route add default via '{0}' dev eth0 || true"
-        route_commands.append(route6_cmd.format(v6defgw))
+        route_commands.append(route6_cmd.format(v6defgw_ip))
 
         local_commands = '\n'.join(ipv6_commands + route_commands) + '\n'
 
@@ -561,7 +564,10 @@ class HetznerState(MachineState):
             },
             'networking': {
                 'interfaces': iface_attrs,
-                'defaultGateway': defgw,
+                'defaultGateway': {
+                    'address': defgw_ip,
+                    'interface': defgw_dev,
+                },
                 'nameservers': self._get_nameservers(),
                 'localCommands': local_commands,
             }
